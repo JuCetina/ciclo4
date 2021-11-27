@@ -1,11 +1,13 @@
 package com.vacunapp2.vacunapp.controllers;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
 import com.vacunapp2.vacunapp.exceptions.CustomException;
 import com.vacunapp2.vacunapp.models.UsuarioModel;
 import com.vacunapp2.vacunapp.services.UsuarioService;
+import com.vacunapp2.vacunapp.utils.Autorizacion;
 import com.vacunapp2.vacunapp.utils.BCrypt;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +20,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 
 @RestController
 @CrossOrigin(origins = "*", methods = {RequestMethod.GET})
@@ -49,6 +54,46 @@ public class UsuarioController {
         return ResponseEntity.ok(respuesta);
     }
 
+
+    @PostMapping("/login")
+    public ResponseEntity<Map<String,String>> acceder(@RequestBody UsuarioModel usuario){
+
+        UsuarioModel auxiliar = this.usuarioService.obtenerPorUsername(usuario.getUsername());
+
+        Map<String,String> respuesta = new HashMap<>();
+
+        if(auxiliar.getUsername() == null){
+            respuesta.put("mensaje", "Usuario y/o contraseña incorrectos.");
+        }else{
+            if(!BCrypt.checkpw(usuario.getPassword(), auxiliar.getPassword())){
+                respuesta.put("mensaje", "Usuario y/o contraseña incorrectos.");
+            }else{
+                respuesta.put("mensaje", "Se accedió correctamente.");
+
+                String hash = "";
+                Long tiempo = System.currentTimeMillis();
+
+                if(auxiliar.getId() != ""){
+                    hash = Jwts.builder()
+                    .signWith(SignatureAlgorithm.HS256, Autorizacion.KEY)
+                    .setSubject(auxiliar.getNombre())
+                    .setIssuedAt(new Date(tiempo))
+                    .setExpiration(new Date(tiempo + 900000))
+                    .claim("username", auxiliar.getUsername())
+                    .claim("correo", auxiliar.getCorreo())
+                    .compact();
+                }
+
+                auxiliar.setHash(hash);
+                respuesta.put("hash", hash);
+            }
+        }
+
+        return ResponseEntity.ok(respuesta);
+    }
+
+
+    
     public void throwError(Errors error){
         String mensaje = "";
         int index = 0;
